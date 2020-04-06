@@ -1,0 +1,84 @@
+---
+- name: Create Nexus backup directory
+  file:
+    path: "{{ nexus_backup_dir }}"
+    state: "directory"
+    owner: "{{ nexus_user }}"
+    group: "{{ nexus_group }}"
+  when: nexus_backup_dir_create | bool
+
+- name: Setup Nexus default timezone
+  lineinfile:
+    dest: "{{ nexus_install_dir }}/bin/nexus.vmoptions"
+    regexp: "^-Duser.timezone=.*"
+    line: "-Duser.timezone={{ nexus_timezone }}"
+  notify:
+    - Restart Sonatype Nexus
+
+- name: Stop the admin wizard from running
+  lineinfile:
+    path: "{{ nexus_default_settings_file }}"
+    line: "nexus.onboarding.enabled={{ nexus_onboarding_wizard }}"
+    create: true
+
+- name: Install plugins from remote source
+  get_url:
+    url: "{{ item }}"
+    dest: "{{ nexus_install_dir }}/deploy/"
+  with_items: "{{ nexus_plugin_urls }}"
+
+- meta: flush_handlers
+
+
+- name: Force (re-)registration of groovy scripts (purge reference dir)
+  file:
+    path: "{{ nexus_data_dir }}/groovy-raw-scripts"
+    state: absent
+  when: nexus_force_groovy_scripts_registration | default(false)
+
+- name: Create directories to hold current groovy scripts for reference
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+  with_items:
+    - "{{ nexus_data_dir }}/groovy-raw-scripts/current"
+    - "{{ nexus_data_dir }}/groovy-raw-scripts/new"
+
+- name: Archive scripts
+  become: no
+  archive:
+    path: "{{ role_path }}/files/groovy/*"
+    dest: "/tmp/nexus-upload-groovy-scripts.tar.gz"
+  run_once: true
+  delegate_to: localhost
+
+- name: Upload new scripts
+  unarchive:
+    src: "/tmp/nexus-upload-groovy-scripts.tar.gz"
+    dest: "{{ nexus_data_dir }}/groovy-raw-scripts/new/"
+
+- block:
+    - name: Sync new scripts to old and get differences
+      shell: >
+        set -o pipefail &&
+        rsync -ric {{ nexus_data_dir }}/groovy-raw-scripts/new/ {{ nexus_data_dir }}/groovy-raw-scripts/current/
+        | cut -d" " -f 2 | sed "s/\.groovy//g"
+      register: nexus_groovy_files_changed
+      check_mode: no
+      changed_when: false
+      # simple check on changed files kept on host
+      # skip ansible lint (we don't want to use synchronize module for this)
+      args:
+        warn: false
+        executable: /bin/bash
+  rescue:
+    - name: Fail with information on rsync error
+      fail:
+        msg: >-
+          A task involving running rsync on the host just failed, most probably because rsync is not installed.
+          Please make sure rsync is installed on your host or double check the above error and try again.
+- name: Declare new or changed groovy scripts in nexus
+  include_tasks: declare_script_each.yml
+  with_items: "{{ nexus_groovy_files_changed.stdout_lines }}"

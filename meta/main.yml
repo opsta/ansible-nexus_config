@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: jirayut
+  description: Ansible role to configure Sonatype Nexus
+  company: "Opsta (Thailand) Co., Tld."
+  license: "MIT"
+  min_ansible_version: 2.5
+  platforms:
+  - name: Ubuntu
+    versions:
+    - trusty
+    - xenial
+  galaxy_tags:
+    - jenkins
+dependencies: []
