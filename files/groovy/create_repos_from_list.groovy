@@ -145,6 +145,7 @@ parsed_args.each { currentRepo ->
         // Configs for docker proxy repos
         if (currentRepo.type == 'proxy' && currentRepo.format == 'docker') {
             configuration.attributes['dockerProxy'] = [
+                    forceBasicAuth             : currentRepo.force_basic_auth,
                     indexType                  : currentRepo.index_type,
                     useTrustStoreForIndexAccess: currentRepo.use_nexus_certificates_to_access_index,
                     foreignLayerUrlWhitelist   : currentRepo.foreign_layer_url_whitelist,
