@@ -1,0 +1,67 @@
+---
+- name: Access scripts API endpoint with defined admin password
+  uri:
+    url: "{{ nexus_api_scheme }}://{{ nexus_api_hostname }}:{{ nexus_api_port }}\
+      {{ nexus_api_context_path }}{{ nexus_rest_api_endpoint }}"
+    method: 'HEAD'
+    user: 'admin'
+    password: "{{ nexus_admin_password }}"
+    force_basic_auth: yes
+    status_code: 200, 401
+    validate_certs: "{{ nexus_api_validate_certs }}"
+  register: nexus_api_head_with_defined_password
+  check_mode: no
+
+- name: Register defined admin password for next operations
+  set_fact:
+    current_nexus_admin_password: "{{ nexus_admin_password }}"
+  when: nexus_api_head_with_defined_password.status == 200
+  no_log: true
+
+- name: Check if admin.password file exists
+  stat:
+    path: "{{ nexus_admin_password_path }}"
+  register: nexus_admin_password_file
+
+- name: Get generated admin password from file (nexus >= 3.17)
+  when:
+    - nexus_admin_password_file.stat.exists
+    - nexus_api_head_with_defined_password.status == 401
+  block:
+    - name: Slurp content of remote generated password file
+      slurp:
+        src: "{{ nexus_admin_password_path }}"
+      register: _slurpedpass
+
+    - name: Set default password from slurped content
+      set_fact:
+        nexus_default_admin_password: "{{ _slurpedpass.content | b64decode }}"
+
+- name: Access scripts API endpoint with default admin password
+  uri:
+    url: "{{ nexus_api_scheme }}://{{ nexus_api_hostname }}:{{ nexus_api_port }}\
+      {{ nexus_api_context_path }}{{ nexus_rest_api_endpoint }}"
+    method: 'HEAD'
+    user: 'admin'
+    password: "{{ nexus_default_admin_password }}"
+    force_basic_auth: yes
+    status_code: 200, 401
+    validate_certs: "{{ nexus_api_validate_certs }}"
+  register: nexus_api_head_with_default_password
+  when: nexus_api_head_with_defined_password.status == 401
+
+- name: Register default admin password for next operations
+  set_fact:
+    current_nexus_admin_password: "{{ nexus_default_admin_password }}"
+  when: (nexus_api_head_with_default_password.status | default(false)) == 200
+
+- name: Ensure current Nexus password is known
+  fail:
+    msg: >-
+      Failed to determine current Nexus password
+      (it is neither the default/generated nor the defined password).
+      If you are trying to change nexus_admin_password after first
+      install, please set `-e nexus_default_admin_password=oldPassword`
+      on the ansible-playbook command line.
+      See https://github.com/ansible-ThoTeam/nexus3-oss/blob/master/README.md#change-admin-password-after-first-install
+  when: current_nexus_admin_password is not defined

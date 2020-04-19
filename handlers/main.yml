@@ -3,3 +3,17 @@
   service:
     name: nexus
     state: restarted
+  notify: Wait for Nexus to start up
+
+- name: Wait for Nexus to start up
+  uri:
+    url: "{{ nexus_api_scheme }}://{{ nexus_api_hostname }}:{{ nexus_api_port }}/"
+    status_code: 200
+    timeout: 5
+  register: nexus_service_status
+  # Keep trying for 5 mins in 5 sec intervals
+  retries: 60
+  delay: 5
+  until: >
+      'status' in nexus_service_status and
+      nexus_service_status['status'] == 200

@@ -1,6 +1,7 @@
 ---
 nexus_install_dir: /opt/nexus
 nexus_data_dir: /opt/sonatype-work
+nexus_admin_password_path: "{{ nexus_data_dir }}/nexus3/admin.password"
 nexus_rest_api_endpoint: "service/rest/v1/script"
 nexus_default_settings_file: "{{ nexus_install_dir }}/etc/nexus-default.properties"
 nexus_user: nexus

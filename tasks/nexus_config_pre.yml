@@ -27,7 +27,11 @@
     dest: "{{ nexus_install_dir }}/deploy/"
   with_items: "{{ nexus_plugin_urls }}"
 
-- meta: flush_handlers
+
+- name: Restart Nexus
+  meta: flush_handlers
+
+- import_tasks: nexus_config_admin_user.yml
 
 
 - name: Force (re-)registration of groovy scripts (purge reference dir)
@@ -82,3 +86,5 @@
 - name: Declare new or changed groovy scripts in nexus
   include_tasks: declare_script_each.yml
   with_items: "{{ nexus_groovy_files_changed.stdout_lines }}"
+
+- import_tasks: nexus_config_change_admin_password.yml
