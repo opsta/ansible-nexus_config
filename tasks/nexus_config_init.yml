@@ -1,0 +1,23 @@
+---
+- name: Setup Nexus default timezone
+  lineinfile:
+    dest: "{{ nexus_install_dir }}/bin/nexus.vmoptions"
+    regexp: "^-Duser.timezone=.*"
+    line: "-Duser.timezone={{ nexus_timezone }}"
+  notify:
+    - Restart Sonatype Nexus
+
+- name: Stop the admin wizard from running
+  lineinfile:
+    path: "{{ nexus_default_settings_file }}"
+    line: "nexus.onboarding.enabled={{ nexus_onboarding_wizard }}"
+    create: true
+
+- name: Install plugins from remote source
+  get_url:
+    url: "{{ item }}"
+    dest: "{{ nexus_install_dir }}/deploy/"
+  with_items: "{{ nexus_plugin_urls }}"
+
+- name: Restart Nexus
+  meta: flush_handlers
